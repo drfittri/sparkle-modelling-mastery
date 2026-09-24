@@ -251,5 +251,33 @@
     return new Date(fromISO).getTime();
   }
 
-  window.SimLib = { rk4, seir, seirs, seirIntervention, vectorModel, drawChart, malaysiaDaily };
+  function lgamma(z) {
+    const g = 7, C = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+    if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - lgamma(1 - z);
+    z -= 1; let x = C[0];
+    for (let i = 1; i < g + 2; i++) x += C[i] / (z + i);
+    const t = z + g + 0.5;
+    return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
+  }
+  const poisLog = (k, lambda) => k * Math.log(lambda) - lambda - lgamma(k + 1);
+
+  // Progressive draw-in: renders opts with drawIndex animating 0 -> 1 (one motion,
+  // honours prefers-reduced-motion by drawing complete immediately).
+  function animateChart(canvas, opts, duration) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      drawChart(canvas, opts);
+      return;
+    }
+    const t0 = performance.now();
+    const dur = duration || 650;
+    function frame(now) {
+      const p = Math.min(1, (now - t0) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      drawChart(canvas, Object.assign({}, opts, { drawIndex: eased }));
+      if (p < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  window.SimLib = { rk4, seir, seirs, seirIntervention, vectorModel, drawChart, animateChart, malaysiaDaily, poisLog };
 })();

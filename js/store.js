@@ -113,8 +113,10 @@
     moduleComplete(moduleId, module) {
       const m = state.modules[moduleId];
       if (!m) return false;
-      const quizIds = (module.quiz || []).map(q => q.id);
-      const quizOk = quizIds.every(qid => m.quiz[qid] && m.quiz[qid].correct);
+      const quizIds = (module.sections || [])
+        .filter(s => s.kind === 'quiz')
+        .flatMap(s => s.questions.map(q => q.id));
+      const quizOk = quizIds.length > 0 && quizIds.every(qid => m.quiz[qid] && m.quiz[qid].correct);
       const transferOk = m.transfer.confirmed;
       return quizOk && transferOk;
     }

@@ -97,7 +97,15 @@
       readout(`10 weeks done. Peak weekly incidence ${fmt(peak)}; final size ${fmt(state.R + state.I)} of 500.`);
     });
     container.querySelector('#jar-reset').addEventListener('click', reset);
-    draw(); readout('Predict week-1 incidence, then step.');
+    SimLib.animateChart(container.querySelector('#jar-canvas'), {
+      series: [
+        { points: state.history.map(h => ({ x: h.week, y: h.S })), color: '#8fa3bd', width: 1.5, dash: [5, 3] },
+        { points: state.history.map(h => ({ x: h.week, y: h.I })), color: '#b3372e', width: 2.5 },
+        { points: state.history.map(h => ({ x: h.week, y: h.R })), color: '#1d56a4', width: 2 }
+      ],
+      xMin: 0, xMax: 10, yMax: 500, xTicks: 5, yTicks: 5,
+      xLabel: 'week', yLabel: 'beans'
+    }); readout('Predict week-1 incidence, then step.');
   }
 
   /* =============== 2. SIR + integrator toggle (M2) =============== */
@@ -136,23 +144,28 @@
     }
     function run() {
       const good = simulate('rk4'), bad = simulate('euler7');
-      const daily = t => good.filter(p => Math.abs(p.t - Math.round(p.t)) < 1e-9).map(p => ({ x: p.t, y: p.y[1] }));
-      const g = SimLib.drawChart(container.querySelector('#sir-canvas'), {
-        series: [
-          { points: bad.map(p => ({ x: p.t, y: p.y[1] })), color: '#b3372e', width: 1.5, dash: [6, 3] },
-          { points: daily(), color: '#1d56a4', width: 2.5 }
-        ],
+      const dailyOf = sol => sol.filter(p => Math.abs(p.t - Math.round(p.t)) < 1e-9).map(p => ({ x: p.t, y: p.y[1] }));
+      const goodDaily = dailyOf(good), badDaily = dailyOf(bad);
+      const showEuler = st.solver === 'euler7';
+      const series = showEuler
+        ? [{ points: badDaily, color: '#b3372e', width: 2.5 },
+           { points: goodDaily, color: '#8fa3bd', width: 1.25, dash: [5, 3] }]
+        : [{ points: goodDaily, color: '#1d56a4', width: 2.5 },
+           { points: badDaily, color: '#c9baa8', width: 1.25, dash: [6, 3] }];
+      SimLib.animateChart(container.querySelector('#sir-canvas'), {
+        series,
         xMin: 0, xMax: 120, xTicks: 6, yTicks: 4,
         xLabel: 'days', yLabel: 'infectious'
       });
-      const peak = Math.max(...daily().map(p => p.y));
-      const peakDay = daily().find(p => p.y === peak).x;
+      const shown = showEuler ? badDaily : goodDaily;
+      const peak = Math.max(...shown.map(p => p.y));
+      const peakDay = shown.find(p => p.y === peak).x;
       const final = good[good.length - 1].y[2] + good[good.length - 1].y[1];
       container.querySelector('#sir-readouts').innerHTML =
+        `<span>shown: <b>${showEuler ? 'Euler dt 7d' : 'RK4'}</b></span>` +
         `<span>peak I <b>${fmt(peak)}</b> @ day <b>${Math.round(peakDay)}</b></span>` +
-        `<span>final outbreak size <b>${fmt(final)}</b> of 10,000</span>` +
-        `<span>r = γ(R0−1) = <b>${(1 / st.inf * (st.R0 - 1)).toFixed(2)}</b>/day</span>` +
-        `<span>doubling ≈ <b>${(Math.LN2 / (1 / st.inf * (st.R0 - 1))).toFixed(1)}</b> days</span>`;
+        `<span>final size (RK4 truth) <b>${fmt(final)}</b> of 10,000</span>` +
+        `<span>r = γ(R0−1) = <b>${(1 / st.inf * (st.R0 - 1)).toFixed(2)}</b>/day</span>`;
     }
     // solver toggle buttons
     const tog = el(`<div class="btn-row" style="margin-top:8px">
@@ -186,18 +199,29 @@
       SimLib.drawChart(container.querySelector('#seir-canvas'), {
         series: [{ points: inc, color: '#1d56a4', width: 2.5 }],
         bars: { points: bars, color: '#c7d3e2' },
-        markers: [{ x: 18, label: 'MCO 18 Mar', color: '#b3372e' }],
+        markers: [{ x: 19, label: 'MCO 18 Mar', color: '#b3372e' }],
         xMin: 0, xMax: 122, xTicks: 6, yTicks: 4,
         xFmt: v => { const d = new Date('2020-02-28'); d.setDate(d.getDate() + Math.round(v)); return d.toISOString().slice(5, 10); },
         yFmt: v => fmt(v), xLabel: 'date (2020)', yLabel: 'cases/day'
       });
-      const at18 = sol.daily.find(d => d.day === 18);
+      const at19 = sol.daily.find(d => d.day === 19);
       container.querySelector('#seir-readouts').innerHTML =
-        `<span>model incidence 18 Mar: <b>${fmt(at18.incidence)}</b></span>` +
-        `<span>observed 18 Mar: <b>${fmt(dataLong.find(d => d.day === 18).cases)}</b></span>` +
+        `<span>model incidence 18 Mar: <b>${fmt(at19.incidence)}</b></span>` +
+        `<span>observed 18 Mar: <b>${fmt(dataLong.find(d => d.day === 19).cases)}</b></span>` +
         `<span>model peak (Jan–Jun horizon): <b>${fmt(Math.max(...inc.map(p => p.y)))}</b>/day</span>`;
     }
-    container.querySelector('#seir-run').addEventListener('click', run);
+    container.querySelector('#seir-run').addEventListener('click', () => {
+      run();
+      const sol = SimLib.seir({ R0: st.R0, latent: 5, infectious: 6, pop: 3.27e7, I0: 20, tMax: 122 });
+      SimLib.animateChart(container.querySelector('#seir-canvas'), {
+        series: [{ points: sol.daily.map(d => ({ x: d.day, y: d.incidence })), color: '#1d56a4', width: 2.5 }],
+        bars: { points: dataLong.map(d => ({ x: d.day, y: d.cases })), color: '#c7d3e2' },
+        markers: [{ x: 19, label: 'MCO 18 Mar', color: '#b3372e' }],
+        xMin: 0, xMax: 122, xTicks: 6, yTicks: 4,
+        xFmt: v => { const d = new Date('2020-02-28'); d.setDate(d.getDate() + Math.round(v)); return d.toISOString().slice(5, 10); },
+        yFmt: v => fmt(v), xLabel: 'date (2020)', yLabel: 'cases/day'
+      });
+    });
     run();
   }
 
@@ -227,18 +251,9 @@
       for (let i = 1; i < y.length; i++) {
         const d = y[i] - model[i];
         ssq += d * d;
-        nll += -window._poisLog(y[i], Math.max(model[i], 1e-9));
+        nll += -SimLib.poisLog(y[i], Math.max(model[i], 1e-9));
       }
       return { ssq, nll };
-    }
-    window._poisLog = function (k, lambda) { return k * Math.log(lambda) - lambda - lgamma(k + 1); };
-    function lgamma(z) { // Lanczos
-      const g = 7, C = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
-      if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - lgamma(1 - z);
-      z -= 1; let x = C[0];
-      for (let i = 1; i < g + 2; i++) x += C[i] / (z + i);
-      const t = z + g + 0.5;
-      return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
     }
 
     const cR0 = slider({ id: 'fr0', label: 'R0', min: 0.5, max: 8, step: 0.01, value: 4 });
@@ -255,7 +270,7 @@
       SimLib.drawChart(container.querySelector('#fit-canvas'), {
         series: [{ points: model.map((v, i) => ({ x: i, y: v })), color: '#b3372e', width: 2.5 }],
         bars: { points: bars, color: '#c7d3e2' },
-        xMin: 0, xMax: 18, xTicks: 6, yTicks: 4,
+        xMin: 0, xMax: 19, xTicks: 6, yTicks: 4,
         xLabel: 'days since 28 Feb 2020', yLabel: 'cases/day'
       });
       container.querySelector('#fit-readouts').innerHTML =
@@ -264,7 +279,7 @@
     }
     container.querySelector('#fit-reveal').addEventListener('click', () => {
       container.querySelector('#fit-readouts').innerHTML +=
-        `<span class="section-done-tag">course LSQ: R0 4.556, I0 15.4, SSQ 16756.64 · course MLE: R0 5.235 (CI 4.76–5.75), I0 9.00, NLL 161.25</span>`;
+        `<span class="section-done-tag">SSQ at course start (R0 4, I0 20): 19652.25 · course LSQ: R0 4.556, I0 15.4, SSQ 16756.64 · course MLE: R0 5.235 (CI 4.76–5.75), I0 9.00, NLL 161.25</span>`;
     });
     container.querySelector('#fit-surface').addEventListener('click', () => {
       const wrap = container.querySelector('#fit-surf-wrap');
@@ -307,6 +322,12 @@
       ctx.fillStyle = '#b3372e'; ctx.fillText('you', xOf(st.R0) + 8, yOf(st.I0) + 4);
     }
     run();
+    SimLib.animateChart(container.querySelector('#fit-canvas'), {
+      series: [{ points: solve(st.R0, st.I0).map((v, i) => ({ x: i, y: v })), color: '#b3372e', width: 2.5 }],
+      bars: { points: data.map(d => ({ x: d.day, y: d.cases })), color: '#c7d3e2' },
+      xMin: 0, xMax: 19, xTicks: 6, yTicks: 4,
+      xLabel: 'days since 28 Feb 2020', yLabel: 'cases/day'
+    });
   }
 
   /* =============== 5. vector-borne (M6) =============== */
@@ -348,6 +369,11 @@
         `<span>recovered at day 120: <b>${fmt(finalSize)}</b>/10,000</span>`;
     }
     run();
+    SimLib.animateChart(container.querySelector('#vec-canvas'), {
+      series: [{ points: SimLib.vectorModel({ popH: 10000, I0H: 1, popV: 10000 * st.m, E0V: 5, bite: st.bite, betaH: 0.75, betaV: 0.75, latentV: 10, infH: 5, lifeV: st.life, tMax: 120 }).daily.map(d => ({ x: d.day, y: d.IH })), color: '#1d56a4', width: 2.5 }],
+      xMin: 0, xMax: 120, xTicks: 6, yTicks: 4,
+      xLabel: 'days', yLabel: 'infectious humans'
+    });
   }
 
   /* =============== 6. MCO intervention game (M7) =============== */
@@ -383,7 +409,7 @@
       const inc = sol.daily.map(d => ({ x: d.day, y: d.incidence }));
       const bars = data.map(d => ({ x: d.day, y: d.cases }));
       let nll = 0;
-      for (let i = 1; i < data.length; i++) nll += -window._poisLog(data[i].cases, Math.max(inc[i] ? inc[i].y : 1e-9, 1e-9));
+      for (let i = 1; i < data.length; i++) nll += -SimLib.poisLog(data[i].cases, Math.max(inc[i] ? inc[i].y : 1e-9, 1e-9));
       SimLib.drawChart(container.querySelector('#mco-canvas'), {
         series: [{ points: inc, color: '#1d56a4', width: 2.5 }],
         bars: { points: bars, color: '#c7d3e2' },
@@ -453,7 +479,7 @@
         p.setAttribute('d', d); p.setAttribute('fill', 'none');
         p.setAttribute('stroke', '#1d56a4'); p.setAttribute('stroke-width', '1.75');
         p.setAttribute('marker-end', 'url(#bd-arrow)');
-        if (id) p.setAttribute('class', 'bd-flow'); p.setAttribute('data-flow', id || '');
+        if (id) { p.setAttribute('class', 'bd-flow'); p.setAttribute('data-flow', id || ''); }
         svg.appendChild(p);
       };
       const defs = document.createElementNS(svgNS, 'defs');
@@ -573,20 +599,24 @@
     SCEN.forEach(s => {
       const card = el(`<div class="quiz-q"><div class="q-text">${s.name}</div><p style="font-size:.9375rem;color:var(--ink-2);margin:0 0 12px">${s.q}</p><div class="opts"></div><div class="verdict" hidden></div></div>`);
       const optsDiv = card.querySelector('.opts'), verdict = card.querySelector('.verdict');
+      const saved = window.Store.getPrediction('m8-' + s.id);
+      const commit = (i) => {
+        const right = i === s.correct;
+        window.Store.recordPrediction('m8-' + s.id, i);
+        optsDiv.querySelectorAll('.opt').forEach(x => { x.disabled = true; });
+        optsDiv.children[i].classList.add(right ? 'is-right' : 'is-wrong');
+        optsDiv.children[s.correct].classList.add('is-right');
+        verdict.hidden = false;
+        verdict.className = 'verdict ' + (right ? 'verdict--right' : 'verdict--wrong');
+        verdict.innerHTML = `<span class="verdict-tag">${right ? 'Correct' : 'Not quite'}</span><span class="verdict-why">${s.why}</span>`;
+        if (right) done++;
+      };
       s.opts.forEach((o, i) => {
         const b = el(`<button class="opt"><span class="opt-key">${'ABCD'[i]}</span><span>${o}</span></button>`);
-        b.addEventListener('click', () => {
-          optsDiv.querySelectorAll('.opt').forEach(x => { x.disabled = true; });
-          const right = i === s.correct;
-          b.classList.add(right ? 'is-right' : 'is-wrong');
-          optsDiv.children[s.correct].classList.add('is-right');
-          verdict.hidden = false;
-          verdict.className = 'verdict ' + (right ? 'verdict--right' : 'verdict--wrong');
-          verdict.innerHTML = `<span class="verdict-tag">${right ? 'Correct' : 'Not quite'}</span><span class="verdict-why">${s.why}</span>`;
-          if (right) { done++; }
-        });
+        b.addEventListener('click', () => commit(i));
         optsDiv.appendChild(b);
       });
+      if (saved != null) commit(saved);
       container.appendChild(card);
     });
   }

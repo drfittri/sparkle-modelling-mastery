@@ -7,10 +7,11 @@
 
   /* ---------- helpers ---------- */
   function h(html) { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; }
-  function esc(s) { return s.replace(/&(?!(amp|lt|gt|#\d+);)/g, '&amp;'); }
   function mdInline(s) {
-    // supports **bold**, <code>, <em>, <span class=term> authored inline
-    return s;
+    // authored inline markers: **bold**, *em* (HTML spans pass through untouched)
+    return s
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[\s(“"])\*([^*\n]+)\*(?=[\s).,;:!?”]|$)/g, '$1<em>$2</em>');
   }
   function renderTex(root) {
     if (window.renderMathInElement) {
@@ -46,7 +47,7 @@
       const qEl = h(`<div class="quiz-q" data-qid="${q.id}">
         <div class="q-text">${q.q}</div>
         <div class="opts"></div>
-        <div class="verdict" hidden></div></div>`);
+        <div class="verdict" role="status" hidden></div></div>`);
       const optsDiv = qEl.querySelector('.opts');
       const verdict = qEl.querySelector('.verdict');
       const prev = window.Store.quizState(mod.id, q.id);
@@ -161,7 +162,6 @@
     sec.blocks.forEach(b => prose.appendChild(renderBlock(b)));
     container.appendChild(secEl);
     renderTex(secEl);
-    window.Store.markSection(mod.id, sec.id);
   }
   function renderSimSection(container, mod, sec) {
     const secEl = h(`<section class="case-section" id="sec-${sec.id}"><h2>${sec.title}</h2></section>`);
@@ -173,7 +173,7 @@
     // predict gate
     if (sec.predict) {
       const pid = sec.id + '-pred';
-      const pred = h(`<div class="predict"><div class="q-text" style="font-weight:700;margin-bottom:12px">Predict first: ${sec.predict.q}</div><div class="opts"></div><div class="verdict" hidden></div></div>`);
+      const pred = h(`<div class="predict"><div class="q-text" style="font-weight:700;margin-bottom:12px">Predict first: ${sec.predict.q}</div><div class="opts"></div><div class="verdict" role="status" hidden></div></div>`);
       const opts = pred.querySelector('.opts');
       const verdict = pred.querySelector('.verdict');
       const prevPred = window.Store.getPrediction(pid);
@@ -219,27 +219,23 @@
       secEl.appendChild(pred);
       secEl.appendChild(inst);
       container.appendChild(secEl);
-      window.Store.markSection(mod.id, sec.id);
-      return;
+        return;
     }
     // no predict gate
     body.innerHTML = '';
     window.Interactives[sec.sim](body);
     container.appendChild(secEl);
-    window.Store.markSection(mod.id, sec.id);
   }
   function renderQuizSection(container, mod, sec) {
     const intro = sec.intro || 'All questions must be answered correctly before the case can be stamped. Wrong picks show the reason — retry freely.';
     const secEl = h(`<section class="case-section" id="sec-${sec.id}"><h2>${sec.title}</h2><div class="prose"><p>${intro}</p></div></section>`);
     renderQuiz(secEl, mod, sec);
     container.appendChild(secEl);
-    window.Store.markSection(mod.id, sec.id);
   }
   function renderTransferSection(container, mod, sec) {
     const secEl = h(`<section class="case-section" id="sec-${sec.id}"><h2>${sec.title}</h2></section>`);
     renderTransfer(secEl, mod, sec);
     container.appendChild(secEl);
-    window.Store.markSection(mod.id, sec.id);
   }
   function renderDebriefSection(container, mod, sec) {
     const secEl = h(`<section class="case-section" id="sec-${sec.id}"><h2>${sec.title}</h2><div class="prose"></div></section>`);
@@ -248,7 +244,6 @@
     sec.eqs.forEach(e => prose.appendChild(renderBlock({ t: 'eq', tex: e.tex, words: e.words })));
     container.appendChild(secEl);
     renderTex(secEl);
-    window.Store.markSection(mod.id, sec.id);
   }
 
   /* ---------- views ---------- */
@@ -282,7 +277,7 @@
     MODULES.forEach(m => {
       const ms = window.Store.moduleState(m.id);
       const stampedM = !!ms.stampedAt;
-      const attempted = Object.keys(ms.sections).length > 0;
+      const attempted = !!(ms.stampedAt || ms.transfer.confirmed || Object.keys(ms.quiz).length || Object.keys(ms.transfer.checks).length);
       const isResume = last && last.module === m.id && !stampedM;
       const status = stampedM
         ? '<span class="stamp stamp--verified">Verified</span>'
@@ -292,7 +287,10 @@
         <span><span class="case-name">${m.title}</span><br><span class="case-scope">${m.scope}</span>${isResume ? '<br><span class="section-done-tag" style="font-size:.6875rem">→ resume here</span>' : ''}</span>
         <span class="case-side">${status}</span>
       </button>`);
-      row.addEventListener('click', () => { location.hash = `#/m/${m.id}`; });
+      row.addEventListener('click', () => {
+        const resumeInto = isResume && last && last.section ? `#/m/${m.id}/${last.section}` : `#/m/${m.id}`;
+        location.hash = resumeInto;
+      });
       list.appendChild(row);
     });
 
@@ -326,17 +324,17 @@
         <div class="file-progress"><i style="transform:scaleX(${doneFrac})"></i></div>
       </header>
       <div style="height:var(--space-4)"></div>
-      <div class="prose">${mod.brief.map(p => `<p>${p}</p>`).join('')}</div>
+      <div class="prose">${mod.brief.map(p => `<p>${mdInline(p)}</p>`).join('')}</div>
       <div id="sections"></div>
     </div>`);
     app.appendChild(frame);
 
     // stamp slot appended to header meta area
-    const stampSlot = h(`<div id="file-stamp-slot" style="position:absolute"></div>`);
+    const stampSlot = h(`<div id="file-stamp-slot" style="position:absolute;top:34px;right:0"></div>`);
     frame.querySelector('.file-head').style.position = 'relative';
     frame.querySelector('.file-head').appendChild(stampSlot);
     if (stamped) {
-      stampSlot.innerHTML = `<span class="stamp-slam" style="position:absolute;top:0;right:0">Verified</span>`;
+      stampSlot.innerHTML = `<span class="stamp-slam">Verified</span>`;
     }
 
     const secWrap = frame.querySelector('#sections');
@@ -355,10 +353,9 @@
     let idx = 0;
     function visibleSections() { return mod.sections; }
     function syncBar() {
-      const done = mod.sections.filter(s => window.Store.isSectionDone(mod.id, s.id)).length;
       const transferConfirmed = window.Store.moduleState(mod.id).transfer.confirmed;
       const atEnd = idx >= mod.sections.length - 1;
-      frame.querySelector('.file-progress i').style.transform = 'scaleX(' + (done / mod.sections.length).toFixed(3) + ')';
+      frame.querySelector('.file-progress i').style.transform = 'scaleX(' + ((idx + 1) / mod.sections.length).toFixed(3) + ')';
       document.getElementById('bar-progress').textContent = stamped ? 'case verified' :
         `section ${Math.min(idx + 1, mod.sections.length)} of ${mod.sections.length}${transferConfirmed ? ' · transfer confirmed' : ''}`;
       const btn = document.getElementById('bar-next');
