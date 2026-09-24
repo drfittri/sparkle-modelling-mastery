@@ -441,6 +441,18 @@
         `<span>counterfactual (+7 days): <b>${fmt(cfTotal)}</b> total — that is <b>${(cfTotal / base).toFixed(1)}×</b> more cases</span>`;
     });
     run();
+    const mcoSol = solve(st.start, st.e1, st.e2);
+    SimLib.animateChart(container.querySelector('#mco-canvas'), {
+      series: [{ points: mcoSol.daily.map(d => ({ x: d.day, y: d.incidence })), color: '#1d56a4', width: 2.5 }],
+      bars: { points: data.map(d => ({ x: d.day, y: d.cases })), color: '#c7d3e2' },
+      markers: [
+        { x: st.start, label: 'MCO', color: '#b3372e' },
+        { x: st.start + 14, label: 'phase 2', color: '#6b7385' }
+      ],
+      xMin: 0, xMax: 75, xTicks: 5, yTicks: 4,
+      xFmt: v => { const d = new Date('2020-02-28'); d.setDate(d.getDate() + Math.round(v)); return d.toISOString().slice(5, 10); },
+      xLabel: 'date (2020)', yLabel: 'cases/day'
+    });
   }
 
   /* =============== 7. model builder (M3) =============== */

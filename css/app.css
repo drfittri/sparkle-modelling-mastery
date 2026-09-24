@@ -44,7 +44,6 @@
   --radius: 4px;             /* forms have edges, not bubbles */
   --speed: 240ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --shadow-file: 0 1px 2px rgba(23, 28, 38, 0.08), 0 8px 28px rgba(23, 28, 38, 0.09);
 }
 
 /* ---------- reset & grounds ---------- */
@@ -61,7 +60,6 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 ::selection { background: var(--blue); color: #fff; }
-::caret-color { color: var(--blue); }
 input, textarea, select, button { caret-color: var(--blue); }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 2px; }
 * { scrollbar-width: thin; scrollbar-color: var(--rule-strong) transparent; }
@@ -376,8 +374,10 @@ input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
   html { scroll-behavior: auto; }
 }
 
-/* curve draw-in for canvas traces is done in JS via progressive draw;
-   reduced-motion honored there. */
+/* current-in-the-wires: compartment arrows carry a slow dash drift */
+@keyframes flow-drift { to { stroke-dashoffset: -20; } }
+.bd-flow { stroke-dasharray: 6 4; animation: flow-drift 1.4s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .bd-flow { animation: none; } }
 
 /* method strip under register */
 .method-strip { display: grid; gap: var(--space-2); margin: var(--space-5) 0 0; padding: 0; }
@@ -392,7 +392,7 @@ input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
 .colophon {
   margin-top: var(--space-7); padding-top: var(--space-4);
   border-top: 1px solid var(--rule);
-  font-size: var(--step--2); color: var(--ink-3);
+  font-size: var(--step--2); color: var(--ink-2);
 }
 .colophon a { color: var(--ink-2); }
 
