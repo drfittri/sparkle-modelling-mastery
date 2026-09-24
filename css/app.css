@@ -249,6 +249,7 @@ input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* buttons — form verbs in the register's voice */
 .btn {
+  touch-action: manipulation;
   appearance: none; border: 1.5px solid var(--ink); border-radius: var(--radius);
   background: var(--sheet); color: var(--ink);
   font: inherit; font-weight: 700; font-size: var(--step--1);
@@ -278,6 +279,7 @@ input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
 .quiz-q .q-text { font-weight: 700; margin-bottom: var(--space-3); }
 .opts { display: grid; gap: var(--space-2); }
 .opt {
+  touch-action: manipulation;
   display: flex; gap: var(--space-3); align-items: flex-start;
   width: 100%; text-align: left;
   font: inherit; font-size: var(--step--1);
@@ -292,7 +294,7 @@ input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
 .opt.is-wrong { border-color: var(--red); background: var(--red-wash); }
 .opt:disabled { cursor: default; opacity: 0.85; }
 .verdict {
-  display: flex; gap: var(--space-2); align-items: baseline;
+  display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: baseline;
   margin-top: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius);
@@ -320,7 +322,7 @@ input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
   background: #fcfcfd;
 }
 .check input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--blue); flex: 0 0 auto; }
-.notes-field { width: 100%; min-height: 7rem; font: inherit; font-size: var(--step--1); padding: 12px; border: 1.5px solid var(--rule-strong); border-radius: var(--radius); resize: vertical; background: #fcfcfd; }
+.notes-field { width: 100%; min-height: 7rem; font: inherit; font-size: 1rem; padding: 12px; border: 1.5px solid var(--rule-strong); border-radius: var(--radius); resize: vertical; background: #fcfcfd; }
 .notes-field:focus { border-color: var(--blue); outline: none; box-shadow: 0 0 0 2px var(--blue-wash); }
 
 /* model answer reveal */

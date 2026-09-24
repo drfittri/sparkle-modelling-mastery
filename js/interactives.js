@@ -4,9 +4,11 @@
   'use strict';
 
   const el = (html) => {
-    const t = document.createElement('template');
-    t.innerHTML = html.trim();
-    return t.content; // DocumentFragment: every root of the template mounts
+    const d = document.createElement('div');
+    d.innerHTML = html.trim();
+    // single root -> the live element itself; multi root -> a live wrapper that
+    // keeps every root queryable after insertion (fragments empty on append)
+    return d.children.length === 1 ? d.firstElementChild : d;
   };
   const fmt = (v, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d });
 

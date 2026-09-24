@@ -135,8 +135,8 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
 
-    const padL = 44, padR = 10, padT = 12, padB = 30;
-    const W = cssW - padL - padR, H = cssH - padT - padB;
+    const padR = 10, padT = 12, padB = 30;
+    let padL = 44;
 
     // scales
     let xMin = opts.xMin != null ? opts.xMin : Infinity, xMax = opts.xMax != null ? opts.xMax : -Infinity;
@@ -149,6 +149,12 @@
     if (!isFinite(xMin)) { xMin = 0; xMax = 10; }
     if (yMax <= 0) yMax = 1;
     yMax = niceCeil(yMax);
+
+    // widen the left pad to fit the largest y label (never clip axis text)
+    ctx.font = '10px "Courier Prime", monospace';
+    const widestY = opts.yFmt ? opts.yFmt(yMax) : String(Math.round(yMax));
+    padL = Math.max(padL, ctx.measureText(widestY).width + 12);
+    const W = cssW - padL - padR, H = cssH - padT - padB;
 
     const X = x => padL + (x - xMin) / (xMax - xMin) * W;
     const Y = y => padT + H - (y / yMax) * H;
@@ -263,20 +269,22 @@
 
   // Progressive draw-in: renders opts with drawIndex animating 0 -> 1 (one motion,
   // honours prefers-reduced-motion by drawing complete immediately).
+  const rafHandles = new WeakMap();
   function animateChart(canvas, opts, duration) {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       drawChart(canvas, opts);
       return;
     }
+    if (rafHandles.has(canvas)) cancelAnimationFrame(rafHandles.get(canvas));
     const t0 = performance.now();
     const dur = duration || 650;
     function frame(now) {
       const p = Math.min(1, (now - t0) / dur);
       const eased = 1 - Math.pow(1 - p, 3);
       drawChart(canvas, Object.assign({}, opts, { drawIndex: eased }));
-      if (p < 1) requestAnimationFrame(frame);
+      if (p < 1) rafHandles.set(canvas, requestAnimationFrame(frame));
     }
-    requestAnimationFrame(frame);
+    rafHandles.set(canvas, requestAnimationFrame(frame));
   }
 
   window.SimLib = { rk4, seir, seirs, seirIntervention, vectorModel, drawChart, animateChart, malaysiaDaily, poisLog };

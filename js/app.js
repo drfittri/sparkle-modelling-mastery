@@ -41,7 +41,7 @@
   }
 
   /* ---------- quiz ---------- */
-  function renderQuiz(container, mod, quiz) {
+  function renderQuiz(container, mod, quiz, secId) {
     const wrap = h('<div></div>');
     quiz.questions.forEach(q => {
       const qEl = h(`<div class="quiz-q" data-qid="${q.id}">
@@ -72,7 +72,7 @@
             verdict.className = 'verdict verdict--right';
             verdict.innerHTML = `<span class="verdict-tag">Correct</span>
               <span class="verdict-why">${q.why}</span>`;
-            window.Store.markSection(mod.id, sec.id);
+            if (secId) window.Store.markSection(mod.id, secId);
             const secEl = qEl.closest('.case-section');
             if (secEl && !secEl.querySelector('h2 .section-done-tag')) {
               secEl.querySelector('h2').appendChild(h('<span class="section-done-tag" style="margin-left:8px">done</span>'));
@@ -283,7 +283,7 @@
   function renderQuizSection(container, mod, sec) {
     const intro = sec.intro || 'Every question must be answered correctly before the case can be stamped. Wrong picks are ruled out — work the rest yourself; the reasoning appears once you commit to the right answer.';
     const secEl = h(`<section class="case-section" id="sec-${sec.id}"><h2>${sec.title}</h2><div class="prose"><p>${intro}</p></div></section>`);
-    renderQuiz(secEl, mod, sec);
+    renderQuiz(secEl, mod, sec, sec.id);
     container.appendChild(secEl);
   }
   function renderTransferSection(container, mod, sec) {
@@ -480,9 +480,8 @@
   }
   window.addEventListener('hashchange', route);
 
-  // KaTeX: render on load (for equations that render before libs arrive)
+  // boot immediately — this script sits at the end of body, above nothing it waits for
   function boot() { route(); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
+  boot();
   window.addEventListener('load', () => { if (window.renderMathInElement) renderTex(document.getElementById('app')); });
 })();
