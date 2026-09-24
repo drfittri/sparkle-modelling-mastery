@@ -4,9 +4,9 @@
   'use strict';
 
   const el = (html) => {
-    const d = document.createElement('div');
-    d.innerHTML = html.trim();
-    return d.firstChild;
+    const t = document.createElement('template');
+    t.innerHTML = html.trim();
+    return t.content; // DocumentFragment: every root of the template mounts
   };
   const fmt = (v, d = 0) => v.toLocaleString('en-US', { maximumFractionDigits: d });
 
@@ -635,6 +635,15 @@
       if (saved != null) commit(saved);
       container.appendChild(card);
     });
+    const anySaved = SCEN.some(s => window.Store.getPrediction('m8-' + s.id) != null);
+    if (anySaved) {
+      const redo = el(`<div class="btn-row"><button class="btn btn--ghost">Re-test scenarios (clears commitments)</button></div>`);
+      redo.querySelector('button').addEventListener('click', () => {
+        SCEN.forEach(s => window.Store.deletePrediction('m8-' + s.id));
+        location.reload();
+      });
+      container.appendChild(redo);
+    }
   }
 
   /* =============== registry =============== */

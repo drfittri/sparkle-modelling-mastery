@@ -51,8 +51,13 @@
       const optsDiv = qEl.querySelector('.opts');
       const verdict = qEl.querySelector('.verdict');
       const prev = window.Store.quizState(mod.id, q.id);
+      const prevWrong = (prev && prev.wrongPicks) || [];
       q.opts.forEach((o, i) => {
         const b = h(`<button class="opt"><span class="opt-key">${'ABCDEFGH'[i]}</span><span>${o}</span></button>`);
+        if (prev && !prev.correct && prevWrong.includes(i)) {
+          b.disabled = true;
+          b.classList.add('is-wrong');
+        }
         if (prev && prev.correct) {
           b.disabled = true;
           if (i === q.correct) b.classList.add('is-right');
@@ -67,6 +72,11 @@
             verdict.className = 'verdict verdict--right';
             verdict.innerHTML = `<span class="verdict-tag">Correct</span>
               <span class="verdict-why">${q.why}</span>`;
+            window.Store.markSection(mod.id, sec.id);
+            const secEl = qEl.closest('.case-section');
+            if (secEl && !secEl.querySelector('h2 .section-done-tag')) {
+              secEl.querySelector('h2').appendChild(h('<span class="section-done-tag" style="margin-left:8px">done</span>'));
+            }
             checkDone();
           } else {
             // genuine retrieval: rule the distractor out yourself — the key is not shown
@@ -162,10 +172,21 @@
       }
       window.Store.confirmTransfer(mod.id, true);
       const fresh = window.Store.stampModule(mod.id);
+      const secTag = document.querySelector('h2 .section-done-tag');
+      if (!secTag) {
+        const hs = document.querySelectorAll('.case-section h2');
+        const last = hs[hs.length - 1];
+        if (last) last.appendChild(h('<span class="section-done-tag" style="margin-left:8px">done</span>'));
+      }
       // re-render the file header stamp with the slam
       const slot = document.getElementById('file-stamp-slot');
       if (slot) {
-        slot.innerHTML = `<span class="stamp-slam ${fresh && !REDUCED ? 'is-new' : ''}">Self-verified · ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>`;
+    // stamp lives in the meta row, in flow — it certifies alongside the file's facts
+    const stampSlot = h(`<span id="file-stamp-slot"></span>`);
+    frame.querySelector('.file-meta').appendChild(stampSlot);
+    if (stamped) {
+      stampSlot.innerHTML = `<span class="stamp-slam">Self-verified</span>`;
+    }
         if (fresh) {
           const toast = document.getElementById('toast');
           toast.textContent = 'Case self-verified — stamped in the register.';
@@ -191,8 +212,11 @@
   function renderSimSection(container, mod, sec) {
     const secEl = h(`<section class="case-section" id="sec-${sec.id}"><h2>${sec.title}</h2></section>`);
     if (sec.intro) secEl.appendChild(h(`<div class="prose"><p>${sec.intro}</p></div>`));
-    const inst = h(`<div class="instrument"><div class="instrument-head"><span class="reg-label">Instrument — locked</span><span class="reg-label" style="color:var(--blue)">RK4 · dt 0.05 d</span></div><div class="instrument-body"><p style="color:var(--ink-3);font-size:var(--step--1);margin:4px 0">Commit a prediction to unlock the instrument.</p></div></div>`);
+    const inst = h(`<div class="instrument is-locked"><div class="instrument-head"><span class="reg-label">Instrument — locked</span><span class="reg-label" style="color:var(--blue)" data-sim-label></span></div><div class="instrument-body"><p style="color:var(--ink-3);font-size:var(--step--1);margin:4px 0">Commit a prediction to unlock the instrument.</p></div></div>`);
     const body = inst.querySelector('.instrument-body');
+    inst.classList.add('is-locked');
+    const simLabels = { jar: 'Bean jar', sir: 'Solver bench', seir: 'SEIR vs Malaysia', fit: 'Fitting bench', vector: 'Two-host loop', mco: 'MCO bench', builder: 'Compartment builder', scenarios: 'Scenario cards' };
+    inst.querySelector('[data-sim-label]').textContent = simLabels[sec.sim] || '';
     secEl.appendChild(inst);
 
     // predict gate
@@ -207,6 +231,7 @@
         pred.after(ctr);
         const inst2 = container.querySelector('.instrument');
         if (inst2) {
+          inst2.classList.remove('is-locked');
           inst2.querySelector('.instrument-head .reg-label').textContent = 'Instrument — live';
           inst2.querySelector('.instrument-body').innerHTML = '';
           window.Interactives[sec.sim](inst2.querySelector('.instrument-body'));
@@ -224,7 +249,11 @@
           verdict.hidden = false;
           verdict.className = 'verdict ' + (correct ? 'verdict--right' : 'verdict--wrong');
           verdict.innerHTML = `<span class="verdict-tag">${correct ? 'Correct' : 'Worth knowing'}</span><span class="verdict-why">${sec.predict.why}</span>`;
-          if (!container.querySelector('.predict-after')) unlock();
+          window.Store.markSection(mod.id, sec.id);
+        if (!secEl.querySelector('h2 .section-done-tag')) {
+          secEl.querySelector('h2').appendChild(h('<span class="section-done-tag" style="margin-left:8px">done</span>'));
+        }
+        if (!container.querySelector('.predict-after')) unlock();
         });
         opts.appendChild(b);
       });
@@ -365,10 +394,9 @@
     </div>`);
     app.appendChild(frame);
 
-    // stamp slot appended to header meta area
-    const stampSlot = h(`<div id="file-stamp-slot" style="position:absolute;top:34px;right:0"></div>`);
-    frame.querySelector('.file-head').style.position = 'relative';
-    frame.querySelector('.file-head').appendChild(stampSlot);
+    // stamp lives in the meta row, in flow — it certifies alongside the file's facts
+    const stampSlot = h(`<span id="file-stamp-slot"></span>`);
+    frame.querySelector('.file-meta').appendChild(stampSlot);
     if (stamped) {
       stampSlot.innerHTML = `<span class="stamp-slam">Self-verified</span>`;
     }
@@ -422,7 +450,14 @@
         }
       });
     }, { rootMargin: '-40% 0px -50% 0px' });
-    mod.sections.forEach(s => { const n = document.getElementById('sec-' + s.id); if (n) observer.observe(n); });
+    mod.sections.forEach(s => {
+      const n = document.getElementById('sec-' + s.id);
+      if (!n) return;
+      observer.observe(n);
+      if (window.Store.isSectionDone(mod.id, s.id)) {
+        n.querySelector('h2').appendChild(h('<span class="section-done-tag" style="margin-left:8px">done</span>'));
+      }
+    });
 
     syncBar();
     if (anchorSec) {
@@ -440,6 +475,8 @@
     if (m) viewModule(m[1], m[2]);
     else viewRegister();
     window.scrollTo(0, 0);
+    app.setAttribute('tabindex', '-1');
+    app.focus({ preventScroll: true });
   }
   window.addEventListener('hashchange', route);
 

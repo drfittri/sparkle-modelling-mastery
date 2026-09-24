@@ -288,7 +288,6 @@ input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .opt:hover { border-color: var(--ink-2); }
 .opt .opt-key { font-family: var(--font-registry); font-weight: 700; color: var(--ink-2); flex: 0 0 auto; }
-.opt.is-chosen { border-color: var(--blue); background: var(--blue-wash); }
 .opt.is-right { border-color: var(--blue); background: var(--blue-wash); }
 .opt.is-wrong { border-color: var(--red); background: var(--red-wash); }
 .opt:disabled { cursor: default; opacity: 0.85; }
@@ -364,6 +363,14 @@ input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
   padding: var(--space-3) 0;
 }
 .back-link:hover { color: var(--blue); }
+
+/* stamped files reserve the title row's right side for the stamp */
+@media (max-width: 600px) {
+  .file-head.is-stamped h1,
+  .file-head.is-stamped .file-sub { padding-right: 7.5rem; }
+}
+.instrument.is-locked .instrument-body { opacity: 0.55; }
+.instrument.is-locked .instrument-body::after { content: none; }
 
 /* section enter animation — one motion, on section change only */
 @keyframes section-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }

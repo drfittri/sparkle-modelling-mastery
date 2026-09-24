@@ -21,6 +21,7 @@
       if (!raw) return blank();
       const parsed = JSON.parse(raw);
       if (!parsed || parsed.v !== 1) return blank();
+      if (!parsed.modules) parsed.modules = {};
       return parsed;
     } catch (e) {
       return blank();
@@ -33,6 +34,7 @@
   }
 
   function moduleState(id) {
+    if (!state.modules) state.modules = {};
     if (!state.modules[id]) state.modules[id] = { sections: {}, quiz: {}, transfer: { checks: {}, notes: '', confirmed: false }, stampedAt: null };
     const m = state.modules[id];
     if (!m.sections) m.sections = {};
@@ -58,6 +60,10 @@
 
     recordPrediction(simId, choice) {
       state.predictions[simId] = choice;
+      save();
+    },
+    deletePrediction(simId) {
+      delete state.predictions[simId];
       save();
     },
     getPrediction(simId) {
