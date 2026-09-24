@@ -60,19 +60,22 @@
         b.addEventListener('click', () => {
           const correct = i === q.correct;
           window.Store.recordQuizAnswer(mod.id, q.id, correct, i);
-          optsDiv.querySelectorAll('.opt').forEach(x => x.disabled = true);
-          b.classList.add(correct ? 'is-right' : 'is-wrong');
-          if (!correct) optsDiv.children[q.correct].classList.add('is-right');
-          verdict.hidden = false;
-          verdict.className = 'verdict ' + (correct ? 'verdict--right' : 'verdict--wrong');
-          verdict.innerHTML = `<span class="verdict-tag">${correct ? 'Correct' : 'Not quite — try again'}</span>
-            <span class="verdict-why">${q.why}</span>`;
-          if (!correct) {
-            // allow retry: re-enable others
-            optsDiv.querySelectorAll('.opt').forEach((x, j) => { if (j !== i && j !== q.correct) x.disabled = false; });
-            b.disabled = true;
-          } else {
+          if (correct) {
+            optsDiv.querySelectorAll('.opt').forEach(x => x.disabled = true);
+            b.classList.add('is-right');
+            verdict.hidden = false;
+            verdict.className = 'verdict verdict--right';
+            verdict.innerHTML = `<span class="verdict-tag">Correct</span>
+              <span class="verdict-why">${q.why}</span>`;
             checkDone();
+          } else {
+            // genuine retrieval: rule the distractor out yourself — the key is not shown
+            b.disabled = true;
+            b.classList.add('is-wrong');
+            verdict.hidden = false;
+            verdict.className = 'verdict verdict--wrong';
+            verdict.innerHTML = `<span class="verdict-tag">Ruled out</span>
+              <span class="verdict-why">That option doesn't hold up. Work the remaining ones — the reasoning appears once you commit to the right answer.</span>`;
           }
         });
         optsDiv.appendChild(b);
@@ -84,6 +87,18 @@
       }
       wrap.appendChild(qEl);
     });
+    // re-test affordance: a stamped/complete checkpoint can be cleared and retaken
+    const allCorrect = quiz.questions.every(q => {
+      const s = window.Store.quizState(mod.id, q.id);
+      return s && s.correct;
+    });
+    if (allCorrect) {
+      wrap.appendChild(h(`<div class="btn-row"><button class="btn btn--ghost" id="redo-${mod.id}">Re-test this checkpoint (clears answers for genuine retrieval)</button></div>`));
+      wrap.querySelector('#redo-' + mod.id).addEventListener('click', () => {
+        window.Store.clearModuleQuiz(mod.id);
+        location.reload();
+      });
+    }
     container.appendChild(wrap);
     function checkDone() { /* progress re-render handled by continue bar */ }
   }
@@ -104,29 +119,39 @@
         <textarea class="notes-field" id="notes-${mod.id}" placeholder="Your field notes — saved on this device.">${ms.transfer.notes || ''}</textarea>
       </div>
       <div class="reveal">
-        <button class="btn btn--blue" id="reveal-${mod.id}">Commit your answers, then open the model answer</button>
+        <button class="btn btn--blue" id="reveal-${mod.id}" disabled>Write your attempt to unlock the model answer</button>
         <div class="reveal-body" hidden><span class="reg-label" style="display:block;margin-bottom:6px">Model answer</span>${transfer.modelAnswer.replace(/\n/g, '<br>')}</div>
       </div>
-      <div class="btn-row"><button class="btn btn--primary" id="confirm-${mod.id}" ${allCheckedNow() ? '' : 'disabled'}>${alreadyStamped ? 'Case stamped VERIFIED' : 'Confirm self-assessment — file this case'}</button></div>
+      <div class="btn-row"><button class="btn btn--primary" id="confirm-${mod.id}" ${allCheckedNow() ? '' : 'disabled'}>${alreadyStamped ? 'Case self-verified' : 'Confirm self-assessment — file this case'}</button></div>
       <p class="control-hint" style="margin-top:8px">Honest self-assessment: check off only the tasks you actually completed. Confirming with the checkpoint passed stamps the case in the register.</p>
     </div>`);
 
     function allChecked() { return [...elT.querySelectorAll('.selfcheck input')].every(c => c.checked); }
 
+    function syncRevealGate() {
+      const btn = elT.querySelector('#reveal-' + mod.id);
+      const ready = (elT.querySelector('#notes-' + mod.id).value || '').trim().length >= 20;
+      btn.disabled = !ready && !bodyOpen();
+      btn.title = ready ? '' : 'Write your attempt in the notes field first — even one line per task.';
+      if (!ready) btn.textContent = 'Write your attempt to unlock the model answer';
+      else if (!bodyOpen()) btn.textContent = 'Commit your answers, then open the model answer';
+    }
+    function bodyOpen() { return !elT.querySelector('.reveal-body').hidden; }
     elT.querySelectorAll('.selfcheck input').forEach(c => c.addEventListener('change', () => {
       window.Store.toggleTransferCheck(mod.id, +c.dataset.i, c.checked);
       elT.querySelector('#confirm-' + mod.id).disabled = !allChecked();
     }));
     elT.querySelector('#notes-' + mod.id).addEventListener('input', e => {
       window.Store.setTransferNotes(mod.id, e.target.value);
+      syncRevealGate();
     });
     elT.querySelector('#reveal-' + mod.id).addEventListener('click', () => {
       const body = elT.querySelector('.reveal-body');
       body.hidden = !body.hidden;
       renderTex(body);
-      elT.querySelector('#reveal-' + mod.id).textContent = body.hidden
-        ? 'Commit your answers, then open the model answer' : 'Hide the model answer';
+      syncRevealGate();
     });
+    syncRevealGate();
     elT.querySelector('#confirm-' + mod.id).addEventListener('click', () => {
       if (!window.Store.moduleComplete(mod.id, mod)) {
         const toast = document.getElementById('toast');
@@ -140,16 +165,16 @@
       // re-render the file header stamp with the slam
       const slot = document.getElementById('file-stamp-slot');
       if (slot) {
-        slot.innerHTML = `<span class="stamp-slam ${fresh && !REDUCED ? 'is-new' : ''}">Verified · ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>`;
+        slot.innerHTML = `<span class="stamp-slam ${fresh && !REDUCED ? 'is-new' : ''}">Self-verified · ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>`;
         if (fresh) {
           const toast = document.getElementById('toast');
-          toast.textContent = 'Case verified — stamped in the register.';
+          toast.textContent = 'Case self-verified — stamped in the register.';
           toast.classList.add('is-on');
           setTimeout(() => toast.classList.remove('is-on'), 2600);
         }
       }
       elT.querySelector('#confirm-' + mod.id).disabled = true;
-      elT.querySelector('#confirm-' + mod.id).textContent = 'Case stamped VERIFIED';
+      elT.querySelector('#confirm-' + mod.id).textContent = 'Case self-verified';
     });
     container.appendChild(elT);
     renderTex(elT);
@@ -227,7 +252,7 @@
     container.appendChild(secEl);
   }
   function renderQuizSection(container, mod, sec) {
-    const intro = sec.intro || 'All questions must be answered correctly before the case can be stamped. Wrong picks show the reason — retry freely.';
+    const intro = sec.intro || 'Every question must be answered correctly before the case can be stamped. Wrong picks are ruled out — work the rest yourself; the reasoning appears once you commit to the right answer.';
     const secEl = h(`<section class="case-section" id="sec-${sec.id}"><h2>${sec.title}</h2><div class="prose"><p>${intro}</p></div></section>`);
     renderQuiz(secEl, mod, sec);
     container.appendChild(secEl);
@@ -280,7 +305,7 @@
       const attempted = !!(ms.stampedAt || ms.transfer.confirmed || Object.keys(ms.quiz).length || Object.keys(ms.transfer.checks).length);
       const isResume = last && last.module === m.id && !stampedM;
       const status = stampedM
-        ? '<span class="stamp stamp--verified">Verified</span>'
+        ? '<span class="stamp stamp--verified">Self-verified</span>'
         : attempted ? '<span class="stamp stamp--open">Open</span>' : '<span class="stamp stamp--unopened">Unopened</span>';
       const row = h(`<button class="case-line ${isResume ? 'is-resume' : ''}" data-mod="${m.id}">
         <span class="case-no">${m.caseNo}</span>
@@ -293,6 +318,17 @@
       });
       list.appendChild(row);
     });
+
+    const stampedMods = MODULES.filter(m => window.Store.moduleState(m.id).stampedAt);
+    if (stampedMods.length >= 2) {
+      const recall = h(`<div class="btn-row" style="margin-top:var(--space-4)"><button class="btn btn--blue" id="field-recall">Field recall — re-test a random closed case</button></div>`);
+      frame.querySelector('.method-strip').after(recall);
+      recall.querySelector('#field-recall').addEventListener('click', () => {
+        const pick = stampedMods[Math.floor(Math.random() * stampedMods.length)];
+        const quizSec = pick.sections.find(s => s.kind === 'quiz');
+        location.hash = `#/m/${pick.id}/${quizSec.id}`;
+      });
+    }
 
     frame.querySelector('#reset-progress').addEventListener('click', () => {
       if (confirm('Clear all progress, answers and notes on this device?')) {
@@ -334,7 +370,7 @@
     frame.querySelector('.file-head').style.position = 'relative';
     frame.querySelector('.file-head').appendChild(stampSlot);
     if (stamped) {
-      stampSlot.innerHTML = `<span class="stamp-slam">Verified</span>`;
+      stampSlot.innerHTML = `<span class="stamp-slam">Self-verified</span>`;
     }
 
     const secWrap = frame.querySelector('#sections');

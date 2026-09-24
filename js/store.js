@@ -105,6 +105,12 @@
       save();
     },
 
+    clearModuleQuiz(moduleId) {
+      const m = moduleState(moduleId);
+      m.quiz = {};
+      save();
+    },
+
     resetAll() {
       state = blank();
       save();

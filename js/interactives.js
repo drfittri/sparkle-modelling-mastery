@@ -132,8 +132,12 @@
         const foi = beta * I / N;
         return [-foi * S, foi * S - gamma * I, gamma * I];
       };
+      if (solver === 'rk4') {
+        return SimLib.rk4(deriv, [N - 1, 1, 0], 0, 120, 0.05);
+      }
+      // deliberate teaching artefact: giant-step Euler
       let y = [N - 1, 1, 0], t = 0, out = [{ t: 0, y: y.slice() }];
-      const dt = solver === 'euler7' ? 7 : 0.05;
+      const dt = 7;
       while (t < 120) {
         const k = deriv(t, y);
         y = y.map((v, j) => Math.max(0, v + dt * k[j]));
@@ -208,7 +212,7 @@
       container.querySelector('#seir-readouts').innerHTML =
         `<span>model incidence 18 Mar: <b>${fmt(at19.incidence)}</b></span>` +
         `<span>observed 18 Mar: <b>${fmt(dataLong.find(d => d.day === 19).cases)}</b></span>` +
-        `<span>model peak (Jan–Jun horizon): <b>${fmt(Math.max(...inc.map(p => p.y)))}</b>/day</span>`;
+        `<span>model peak (28 Feb–29 Jun run): <b>${fmt(Math.max(...inc.map(p => p.y)))}</b>/day</span>`;
     }
     container.querySelector('#seir-run').addEventListener('click', () => {
       run();
